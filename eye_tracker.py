@@ -120,6 +120,10 @@ class ModelWorker(QThread):
 
     def __init__(self, data, screen_size, parent=None):
         super().__init__(parent)
+        # NumPy's OpenBLAS/LAPACK solver needs more native stack than macOS's
+        # default QThread provides. Reserve it before start(), on every platform.
+        # Keep fitting off the GUI thread so calibration and Stop stay responsive.
+        self.setStackSize(16 * 1024 * 1024)
         self.data = data
         self.screen_size = screen_size.copy()
 

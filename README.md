@@ -183,7 +183,7 @@ Eye-Tracker/
 
 The project demonstrates practical computer-vision and desktop engineering:
 
-- **Concurrency:** camera inference and model selection run in Qt workers; stopping requests asynchronous cleanup without blocking the controls.
+- **Concurrency:** camera inference and model selection run in Qt workers; stopping requests asynchronous cleanup without blocking the controls. The fitting worker reserves a 16 MiB native stack before starting, preventing OpenBLAS stack overflow on macOS's smaller default worker stacks.
 - **Numerical reliability:** feature scaling floors, robust sample rejection, weighted ridge fitting, bounded extrapolation, and preference for simpler models.
 - **Evaluation discipline:** calibration-group cross-validation and nine separate verification targets, with no verification-to-training leakage.
 - **Platform integration:** native macOS Spaces behavior, pointer-safe Win32 window APIs, high-DPI logical coordinates, and selected-display positioning.
@@ -214,6 +214,7 @@ gaze_fraction_x,gaze_fraction_y,image_quality_heuristic
 | Drift after moving | Recalibrate in the new seat/camera position. Use the head-motion step to cover realistic movement. |
 | Windows install fails | Use 64-bit Python 3.11 and check that the Python launcher is installed. Python 3.13+ is unsupported by the pinned stack. |
 | Qt plugin failure in an iCloud folder | Use the macOS launcher, which installs into `.venv.nosync` and clears hidden file flags. |
+| Python quits unexpectedly while choosing the calibration model | Update to the latest code. The fitting worker now reserves enough native stack for NumPy/OpenBLAS; no dependency reinstall is needed for this fix. |
 | Overlay missing over a Windows game | Try windowed or borderless mode. Exclusive fullscreen can bypass ordinary desktop overlays. |
 | Saved calibration rejected | Select the original screen/camera, or calibrate again after changing the display geometry or feature schema. |
 | First-run model download fails | Check the network connection and restart. Unverified partial downloads are removed automatically. |
@@ -228,7 +229,7 @@ python -m compileall -q eye_tracker.py face_scan.py gaze_model.py screen_overlay
 python -m unittest discover -s tests -v
 ```
 
-Tests run with Qt's offscreen platform and do not open your webcam. They exercise contour rotation/scale invariance, head transforms, outlier rejection, fixation stability, motion chunk weighting, unseen-edge predictions on synthetic data, model cancellation, profile validation, filtering, both calibration modes, blink/quality gating, camera startup and fallback, verification isolation, pause/recovery, image memory ownership, and CSV cleanup.
+Tests run with Qt's offscreen platform and do not open your webcam. They exercise contour rotation/scale invariance, head transforms, outlier rejection, fixation stability, motion chunk weighting, unseen-edge predictions on synthetic data, model cancellation, profile validation, filtering, both calibration modes, blink/quality gating, camera startup and fallback, verification isolation, pause/recovery, image memory ownership, and CSV cleanup. A separate subprocess runs complete model selection through the actual background worker and checks delivery of its fitted model, catching native stack crashes that main-thread numerical tests miss.
 
 GitHub Actions runs the suite on **macOS, Windows, and Linux**, using **Python 3.11 and 3.12**. These checks validate software behavior; physical webcam accuracy and native overlay placement still require testing on actual hardware.
 
