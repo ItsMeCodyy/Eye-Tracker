@@ -18,9 +18,20 @@ FEATURE_NAMES = (
     "head_y",
     "head_z",
 )
+# Keep the original twelve features in the same order for the existing pipeline.
+DETAIL_NAMES = (
+    "iris_x", "iris_y", "iris_lid_y", "lid_open", "iris_ratio",
+    "inner_open", "outer_open", "upper_curve", "lower_curve", "iris_depth",
+)
+FEATURE_NAMES += tuple(f"{side}_{name}" for side in ("left", "right") for name in DETAIL_NAMES)
+FEATURE_NAMES += ("binocular_x", "binocular_y")
 EYE_FEATURE_COUNT = 6
 # Smallest believable spread of each feature; stops noise in near-constant ones being amplified.
 FEATURE_FLOOR = np.array([0.02, 0.02, 0.05, 0.05, 0.02, 0.03, 2.0, 2.0, 2.0, 1.0, 1.0, 2.0])
+FEATURE_FLOOR = np.r_[FEATURE_FLOOR, np.tile(
+    [0.02, 0.02, 0.03, 0.02, 0.02, 0.02, 0.02, 0.02, 0.02, 0.015], 2
+), [0.02, 0.02]]
+EYE_COLUMNS = tuple(range(6)) + tuple(range(12, len(FEATURE_NAMES)))
 
 EYE_SETS = {
     "iris": ("iris_x", "iris_y"),
@@ -29,6 +40,16 @@ EYE_SETS = {
     "iris + blendshape": ("iris_x", "iris_y", "gaze_h", "gaze_v"),
     "full eye scan": ("iris_x", "iris_y", "gaze_h", "gaze_v", "iris_lid_y", "lid_open"),
 }
+EYE_SETS.update({
+    "independent irises": ("left_iris_x", "left_iris_y", "right_iris_x", "right_iris_y"),
+    "binocular geometry": ("iris_x", "iris_y", "binocular_x", "binocular_y",
+                            "left_iris_lid_y", "right_iris_lid_y"),
+    "eye contours": ("iris_x", "iris_y", "gaze_h", "gaze_v") + tuple(
+        f"{side}_{name}" for side in ("left", "right")
+        for name in ("iris_lid_y", "lid_open", "inner_open", "outer_open",
+                     "upper_curve", "lower_curve", "iris_ratio")
+    ),
+})
 HEAD_SETS = {
     "no head": (),
     "head angles": ("yaw", "pitch"),
@@ -48,12 +69,20 @@ class Measurement:
     iris_px: float
     luma: float  # mean face brightness, 0..255
     face_width: float  # fraction of the frame width
+    quality: float = 1.0  # geometry/lighting heuristic; not a probability of gaze accuracy
+    eye_blinks: np.ndarray = field(default_factory=lambda: np.zeros(2))
+    eye_contours: tuple = ()  # image-space contours, anatomical left then right
+    iris_rings: tuple = ()
+    timestamp: float = 0.0
+    frame_size: tuple = ()
 
 
 def robust_center(samples):
     """Average of the frames that agree on the eye features, ignoring saccades and glitches."""
     samples = np.asarray(samples, dtype=float)
-    eye = slice(0, EYE_FEATURE_COUNT)
+    if samples.ndim != 2 or len(samples) == 0 or not np.isfinite(samples).all():
+        raise ValueError("Calibration requires finite, nonempty feature rows")
+    eye = list(EYE_COLUMNS) if samples.shape[1] == len(FEATURE_NAMES) else list(range(6))
     center = np.median(samples[:, eye], axis=0)
     spread = np.maximum(
         1.4826 * np.median(np.abs(samples[:, eye] - center), axis=0),
@@ -86,9 +115,13 @@ class CalibrationData:
 
     def add_motion(self, group, target, samples):
         """Fixed gaze while the head moves: teaches the model to cancel head motion."""
-        for chunk in np.array_split(np.asarray(samples, dtype=float), self.MOTION_CHUNKS):
+        samples = np.asarray(samples, dtype=float)
+        if samples.ndim != 2 or not len(samples) or not np.isfinite(samples).all():
+            raise ValueError("Head-motion samples must be finite and nonempty")
+        chunks = min(self.MOTION_CHUNKS, len(samples))
+        for chunk in np.array_split(samples, chunks):
             self._append(
-                np.median(chunk, axis=0), target, self.MOTION_WEIGHT / self.MOTION_CHUNKS, group
+                np.median(chunk, axis=0), target, self.MOTION_WEIGHT / chunks, group
             )
 
     def extend(self, other):
@@ -102,6 +135,14 @@ class CalibrationData:
             np.array(self.weights),
             np.array(self.groups),
         )
+
+    def stable(self, samples):
+        """Reject fixation captures dominated by saccades or landmark jitter."""
+        samples = np.asarray(samples, dtype=float)
+        _, retained = robust_center(samples)
+        iris = samples[:, :2]
+        spread = 1.4826 * np.median(np.abs(iris - np.median(iris, axis=0)), axis=0)
+        return retained >= 0.6 * len(samples) and float(spread.max()) < 0.055
 
 
 def _design(z, degree):
@@ -128,6 +169,10 @@ class GazeModel:
         x = np.asarray(features, dtype=float)[:, columns]
         y = np.asarray(targets, dtype=float)
         w = np.asarray(sample_weights, dtype=float)
+        if (x.ndim != 2 or y.shape != (len(x), 2) or w.shape != (len(x),)
+                or len(x) < 2 or not np.isfinite(x).all() or not np.isfinite(y).all()
+                or not np.isfinite(w).all() or (w <= 0).any() or alpha <= 0):
+            raise ValueError("Invalid calibration rows or regularization")
         floor = FEATURE_FLOOR[list(columns)]
         mean = np.average(x, axis=0, weights=w)
         spread = np.sqrt(np.average((x - mean) ** 2, axis=0, weights=w))
@@ -153,6 +198,33 @@ class GazeModel:
     def predict(self, features):
         return self.predict_many(np.asarray(features, dtype=float)[None])[0]
 
+    def to_dict(self):
+        return {"schema": 1, "feature_names": list(FEATURE_NAMES), "columns": list(self.columns),
+                "degree": self.degree, "description": self.description,
+                **{name: getattr(self, name).tolist()
+                   for name in ("mean", "scale", "weights", "low", "high")}}
+
+    @classmethod
+    def from_dict(cls, payload):
+        """Load numeric JSON only, with strict schema/shape checks (never pickle)."""
+        if payload.get("schema") != 1 or payload.get("feature_names") != list(FEATURE_NAMES):
+            raise ValueError("Calibration feature schema differs; please recalibrate")
+        columns = tuple(payload["columns"])
+        degree = payload["degree"]
+        if (degree not in (1, 2) or not 2 <= len(columns) <= len(FEATURE_NAMES)
+                or any(type(c) is not int or not 0 <= c < len(FEATURE_NAMES) for c in columns)
+                or len(set(columns)) != len(columns)):
+            raise ValueError("Invalid calibration feature columns")
+        arrays = {n: np.asarray(payload[n], dtype=float)
+                  for n in ("mean", "scale", "weights", "low", "high")}
+        size = len(columns)
+        if (any(arrays[n].shape != (size,) for n in ("mean", "scale", "low", "high"))
+                or arrays["weights"].shape != (1 + size + (3 if degree == 2 else 0), 2)
+                or any(not a.size or not np.isfinite(a).all() for a in arrays.values())
+                or (arrays["scale"] <= 0).any() or (arrays["low"] > arrays["high"]).any()):
+            raise ValueError("Invalid calibration numeric arrays")
+        return cls(columns, degree, **arrays, description=str(payload.get("description", "Saved model")))
+
 
 def _group_errors(model, features, targets, groups, screen_size):
     errors = []
@@ -176,17 +248,23 @@ def _leave_one_group_out(features, targets, weights, groups, columns, degree, al
     return float(np.mean(errors))
 
 
-def select_model(data, screen_size):
+def select_model(data, screen_size, cancelled=None):
     """Pick the eye features, head features and smoothness that predict unseen dots best.
 
     Returns (model, cross-validated error in pixels). Among configurations within a few
     percent of the best, the simplest one wins.
     """
     features, targets, weights, groups = data.arrays()
+    if len(np.unique(groups)) < 4:
+        raise ValueError("At least four independent calibration targets are needed")
     candidates = []
     for (eye_name, eye), (head_name, head), alpha, degree in product(
         EYE_SETS.items(), HEAD_SETS.items(), ALPHAS, (1, 2)
     ):
+        if cancelled is not None and cancelled():
+            raise InterruptedError("Calibration cancelled")
+        if any(FEATURE_NAMES.index(name) >= features.shape[1] for name in eye + head):
+            continue
         columns = tuple(FEATURE_NAMES.index(name) for name in eye + head)
         error = _leave_one_group_out(
             features, targets, weights, groups, columns, degree, alpha, screen_size
@@ -207,6 +285,8 @@ def evaluate_frames(model, frames_by_dot, targets, screen_size):
     errors = []
     for frames, target in zip(frames_by_dot, targets):
         frames = np.asarray(frames, dtype=float)
+        if len(frames) < MEDIAN_WINDOW:
+            raise ValueError("Not enough verification frames")
         medians = np.array(
             [
                 np.median(frames[i - MEDIAN_WINDOW + 1 : i + 1], axis=0)
@@ -228,6 +308,7 @@ class ScanReport:
     warnings: list
     eye_open: float
     distance_cm: float
+    eye_open_by_eye: np.ndarray = field(default_factory=lambda: np.zeros(2))
 
 
 def analyze_scan(measurements):
@@ -265,13 +346,13 @@ def analyze_scan(measurements):
         f"Eyelids open {eye_open[0]:.2f} / {eye_open[1]:.2f} \u00b7 iris {iris_px:.0f}px \u00b7 about {distance_cm:.0f} cm away",
         "; ".join(warnings) if warnings else "Lighting, distance and head position look good",
     ]
-    return ScanReport(lines, warnings, float(eye_open.mean()), distance_cm)
+    return ScanReport(lines, warnings, float(eye_open.mean()), distance_cm, eye_open)
 
 
 class OneEuroFilter:
     """Smooths hard while the point is still and follows quickly when it moves."""
 
-    def __init__(self, min_cutoff=0.15, beta=0.0002, derivative_cutoff=1.0):
+    def __init__(self, min_cutoff=0.8, beta=0.004, derivative_cutoff=1.0):
         self.min_cutoff = min_cutoff
         self.beta = beta
         self.derivative_cutoff = derivative_cutoff

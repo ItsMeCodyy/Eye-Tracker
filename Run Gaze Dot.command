@@ -2,22 +2,26 @@
 set -e
 cd "$(dirname "$0")"
 
-# iCloud flags synced files as hidden, so Qt sees an empty plugin folder; .nosync opts the venv out.
-if [ -d ".venv" ] && [ ! -L ".venv" ]; then
+# .nosync keeps iCloud from hiding or evicting Qt's native plugins.
+if [ -d ".venv" ] && [ ! -L ".venv" ] && [ ! -d ".venv.nosync" ]; then
     mv .venv .venv.nosync
+fi
+
+if [ ! -x ".venv.nosync/bin/python" ]; then
+    python3 -m venv .venv.nosync
+fi
+if [ ! -e ".venv" ]; then
     ln -s .venv.nosync .venv
 fi
-
-if [ ! -x ".venv/bin/python" ]; then
-    python3 -m venv .venv.nosync
-    ln -sfn .venv.nosync .venv
-fi
-
 chflags -R nohidden .venv.nosync
 
-if ! .venv/bin/python -c 'import cv2, mediapipe as mp, numpy, PySide6, AppKit; assert hasattr(mp, "solutions") and PySide6.__version__ == "6.8.3"' >/dev/null 2>&1; then
-    .venv/bin/python -m pip install --upgrade pip
-    .venv/bin/python -m pip install -r requirements.txt
+requirements_hash=$(shasum -a 256 requirements.txt | cut -d ' ' -f 1)
+installed_hash=$(cat .venv.nosync/.requirements-hash 2>/dev/null || true)
+if [ "$requirements_hash" != "$installed_hash" ] || ! .venv.nosync/bin/python -c 'import cv2, mediapipe, numpy, PySide6, AppKit; assert PySide6.__version__ == "6.8.3"' >/dev/null 2>&1; then
+    .venv.nosync/bin/python -m pip install --upgrade pip
+    .venv.nosync/bin/python -m pip install -r requirements.txt
+    printf '%s\n' "$requirements_hash" > .venv.nosync/.requirements-hash
+    chflags -R nohidden .venv.nosync
 fi
 
-exec .venv/bin/python eye_tracker.py
+exec .venv.nosync/bin/python eye_tracker.py

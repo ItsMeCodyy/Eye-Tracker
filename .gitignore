@@ -1,0 +1,22 @@
+# Local environments, including iCloud conflict copies.
+.venv*/
+.venv
+venv/
+models.nosync/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.DS_Store
+Thumbs.db
+.env
+.env.*
+!.env.example
+*.log
+*.part
+*.tmp
+# Personal calibration and gaze sessions never belong in the repository.
+calibration*.json
+gaze*.csv
