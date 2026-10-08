@@ -232,6 +232,8 @@ Tests run with Qt's offscreen platform and do not open your webcam. They exercis
 
 GitHub Actions runs the suite on **macOS, Windows, and Linux**, using **Python 3.11 and 3.12**. These checks validate software behavior; physical webcam accuracy and native overlay placement still require testing on actual hardware.
 
+On Apple Silicon, recent versions of `pip check` may report that MediaPipe 0.10.21 is unsupported despite its working universal2 binaries. This is a [documented upstream wheel-metadata defect](https://github.com/google-ai-edge/mediapipe/issues/6112). CI verifies native imports, recognizes only that exact message on ARM macOS, and still fails on every other compatibility error.
+
 ## Credits & license
 
 Created by **[Cody / @ItsMeCodyy](https://github.com/ItsMeCodyy)**. Built with [MediaPipe Face Landmarker](https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker/python), [OpenCV](https://opencv.org/), [NumPy](https://numpy.org/), and [PySide6 / Qt](https://doc.qt.io/qtforpython-6/). Native overlay behavior uses [AppKit](https://developer.apple.com/documentation/appkit) and [Win32](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-setwindowpos).
