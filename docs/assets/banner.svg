@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="400" viewBox="0 0 1280 400" role="img" aria-labelledby="title desc">
+  <title id="title">Eye Tracker — Gaze Dot</title>
+  <desc id="desc">Webcam gaze estimation with binocular geometry, edge-focused calibration, and native desktop overlays for macOS and Windows.</desc>
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#07101e"/><stop offset="1" stop-color="#132a38"/></linearGradient>
+    <linearGradient id="accent"><stop stop-color="#64e8bf"/><stop offset="1" stop-color="#68c9ff"/></linearGradient>
+    <radialGradient id="iris"><stop stop-color="#143f51"/><stop offset=".58" stop-color="#1c746e"/><stop offset="1" stop-color="#163142"/></radialGradient>
+    <radialGradient id="glow"><stop stop-color="#55e8bd" stop-opacity=".17"/><stop offset="1" stop-color="#55e8bd" stop-opacity="0"/></radialGradient>
+    <pattern id="grid" width="36" height="36" patternUnits="userSpaceOnUse"><path d="M36 0H0V36" fill="none" stroke="#79becb" stroke-opacity=".065"/></pattern>
+  </defs>
+  <rect width="1280" height="400" rx="24" fill="url(#bg)"/>
+  <rect width="1280" height="400" rx="24" fill="url(#grid)"/>
+  <circle cx="1020" cy="172" r="250" fill="url(#glow)"/>
+  <rect x="64" y="51" width="126" height="25" rx="12" fill="#173d3d"/>
+  <circle cx="81" cy="63.5" r="3" fill="#6cf0c5"/>
+  <text x="93" y="68" font-family="Arial, Helvetica, sans-serif" font-size="11" font-weight="700" letter-spacing="1.5" fill="#7cf0c9">GAZE DOT</text>
+  <text x="61" y="156" font-family="Arial, Helvetica, sans-serif" font-size="76" font-weight="800" letter-spacing="-3" fill="#f0f8ff">EYE TRACKER</text>
+  <text x="65" y="200" font-family="Arial, Helvetica, sans-serif" font-size="22" fill="#a0bfd0">A closer look at human-computer interaction.</text>
+  <text x="65" y="240" font-family="Arial, Helvetica, sans-serif" font-size="15" fill="#71d8b9">Binocular geometry. Edge-focused calibration. Native overlays.</text>
+  <path d="M833 175Q919 78 1032 105Q1095 117 1181 175Q1096 234 1017 244Q908 248 833 175Z" fill="#091b27" stroke="url(#accent)" stroke-width="2.5"/>
+  <path d="M833 175Q919 78 1032 105Q1095 117 1181 175" fill="none" stroke="#69debe" stroke-opacity=".4" stroke-width="9"/>
+  <circle cx="1006" cy="175" r="64" fill="url(#iris)" stroke="#62dcbd" stroke-width="2"/>
+  <circle cx="1006" cy="175" r="46" fill="none" stroke="#6de5c8" stroke-opacity=".25" stroke-width="1" stroke-dasharray="2 5"/>
+  <circle cx="1006" cy="175" r="27" fill="#050d16"/>
+  <circle cx="1020" cy="160" r="8" fill="#edffff" fill-opacity=".8"/>
+  <path d="M1006 91V113M1006 237V259M922 175H944M1068 175H1090" stroke="#a0eff0" stroke-width="1.5"/>
+  <g fill="#91f8cf" stroke="#0b2734" stroke-width="2">
+    <circle cx="833" cy="175" r="5"/><circle cx="868" cy="140" r="4"/><circle cx="912" cy="113" r="4"/>
+    <circle cx="963" cy="103" r="4"/><circle cx="1016" cy="102" r="4"/><circle cx="1070" cy="119" r="4"/>
+    <circle cx="1121" cy="143" r="4"/><circle cx="1181" cy="175" r="5"/><circle cx="1130" cy="210" r="4"/>
+    <circle cx="1074" cy="232" r="4"/><circle cx="1017" cy="244" r="4"/><circle cx="960" cy="240" r="4"/>
+    <circle cx="909" cy="222" r="4"/><circle cx="867" cy="198" r="4"/>
+  </g>
+  <g fill="#78ceff" stroke="#102b3c" stroke-width="2"><circle cx="942" cy="175" r="4"/><circle cx="1070" cy="175" r="4"/><circle cx="1006" cy="111" r="4"/><circle cx="1006" cy="239" r="4"/><circle cx="1006" cy="175" r="3"/></g>
+  <text x="887" y="292" font-family="Arial, Helvetica, sans-serif" font-size="10" letter-spacing="2.2" fill="#8baebe">CORNERS / LIDS / IRIS / POSE</text>
+  <path d="M65 322H1215" stroke="#294654"/>
+  <text x="65" y="361" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#d1e7ed">macOS + Windows</text>
+  <text x="297" y="361" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#d1e7ed">34 gaze features</text>
+  <text x="521" y="361" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#d1e7ed">25-point calibration</text>
+  <text x="778" y="361" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#d1e7ed">Local frame processing</text>
+  <text x="1100" y="361" font-family="Arial, Helvetica, sans-serif" font-size="13" fill="#71d8b9">by Cody</text>
+</svg>
