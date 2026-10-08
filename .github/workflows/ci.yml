@@ -28,7 +28,27 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
       - name: Check package compatibility
-        run: python -m pip check
+        shell: python
+        run: |
+          import platform
+          import subprocess
+          import sys
+          import cv2, mediapipe, numpy, PySide6
+
+          check = subprocess.run([sys.executable, '-m', 'pip', 'check'], capture_output=True, text=True)
+          print(check.stdout, end='')
+          print(check.stderr, end='', file=sys.stderr)
+          # The published universal2 wheel has an incorrect Intel-only WHEEL tag.
+          # https://github.com/google-ai-edge/mediapipe/issues/6112
+          known_tag_defect = (
+              sys.platform == 'darwin' and platform.machine() == 'arm64'
+              and check.returncode == 1 and not check.stderr.strip()
+              and check.stdout.strip() == 'mediapipe 0.10.21 is not supported on this platform'
+          )
+          if known_tag_defect:
+              print('Known MediaPipe universal2 metadata defect; native runtime imports passed.')
+          else:
+              sys.exit(check.returncode)
       - name: Compile application
         run: python -m compileall -q eye_tracker.py face_scan.py gaze_model.py screen_overlay.py
       - name: Run numerical, geometry, and application tests
